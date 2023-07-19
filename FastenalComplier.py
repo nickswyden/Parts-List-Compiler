@@ -41,130 +41,153 @@ desc_texts = [
 
 descdict = {key: value for key, value in zip(desc_list, desc_texts)}
 
-#draw file selection window
-root = tk.Tk()
-root.withdraw()
+def get_file_name():
+    #draw file selection window
+    root = tk.Tk()
+    root.withdraw()
 
-#select csv
-file_path = filedialog.askopenfilename()
-masterdf = pd.read_csv(file_path)
+    #select csv
+    file_path = filedialog.askopenfilename()
+    return file_path
 
-#clean data and format to specs
-#remove File extensions
-masterdf['Number'] = masterdf['Number'].str.replace('.ASM', '')
-masterdf['Number'] = masterdf['Number'].str.replace('.PRT', '')
+def clean_master_data(masterdf):
+    #remove File extensions
+    masterdf['Number'] = masterdf['Number'].str.replace('.ASM', '')
+    masterdf['Number'] = masterdf['Number'].str.replace('.PRT', '')
 
-#remove unneeded columns
-masterdf = masterdf.drop(["Level","Version","State","File Name"], axis=1)
+    #remove unneeded columns
+    masterdf = masterdf.drop(["Level","Version","State","File Name"], axis=1)
 
-#remove everything but C, D, H & E
-masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
+    #remove everything but C, D, H & E
+    masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
 
-#add empty Columns
-masterdf['Color'] = ''
-masterdf['Notes'] = ''
+    #add empty Columns
+    masterdf['Color'] = ''
+    masterdf['Notes'] = ''
 
-#sum dupes
-masterdf = masterdf.groupby(['Number','Name','Color','Notes'],as_index=False).agg({'Quantity': 'sum'})
+    #sum dupes
+    masterdf = masterdf.groupby(['Number','Name','Color','Notes'],as_index=False).agg({'Quantity': 'sum'})
+    
+    return masterdf
 
-#break into C D H and sum duplicates
-Cdf = masterdf[masterdf['Number'].str[-1] == 'C']
-Ddf = masterdf[masterdf['Number'].str[-1] == 'D']
-Ddf = Ddf[['Number','Name','Quantity','Color','Notes']]
-Hdf = masterdf[masterdf['Number'].str[-1] == 'H'] #FIXME: implement sorting for E weldments
-Hdf = Hdf[['Number','Name','Quantity','Color','Notes']]
-Edf = masterdf[masterdf['Number'].str[-1] == 'E']
-Edf = Edf[['Number','Name','Quantity','Color','Notes']]
-Hdf = pd.concat([Hdf,Edf]) #Merge E and H into one H
+def split_data(df, x):
+    newdf = df[df['Number'].str[-1] == x]
+    return newdf
+
+def arrange_titles(df,long_title):
+    if long_title == True:
+        df = df[['Number','Name','Quantity','Color','Fastener Type','Notes']]
+    else:
+        df = df[['Number','Name','Quantity','Color','Notes']]
+    return df
+
+def write_to_excel():
+    output_name = os.path.basename(path[:-4])
+    writer = pd.ExcelWriter(output_name + '_output.xlsx', engine="xlsxwriter")
+    workbook  = writer.book
+
+    #create sheets
+    dataframes = {
+        'C - Fasteners': dfs['Cdf'],
+        'D - Fabricated': dfs['Ddf'],
+        'H E - Weldment': dfs['Hdf']
+    }
+
+    for sheet_name, dataframe in dataframes.items():
+        dataframe.to_excel(writer, index=False, startrow=4, sheet_name=sheet_name)
+
+    worksheet_dict = {name: writer.sheets[name] for name in ['C - Fasteners', 'D - Fabricated', 'H E - Weldment']}
+    worksheet_C, worksheet_D, worksheet_H = worksheet_dict.values()
+
+    #define merged colors
+    colors_format_o = workbook.add_format(
+        {
+            "border": 1,
+            "align": "center",
+            "fg_color": "#ff6600",
+        }
+    )
+    colors_format_b = workbook.add_format(
+        {
+            "border": 1,
+            "align": "center",
+            "fg_color": "#6699ff",
+        }
+    )
+    colors_format_g = workbook.add_format(
+        {
+            "border": 1,
+            "align": "center",
+            "fg_color": "#00cc66",
+        }
+    )
+
+    #create colors at the top of sheet
+    worksheets = [worksheet_C, worksheet_D, worksheet_H]
+    titles = ["Common", "New/Rarely Used", "Change Proposal"]
+    colors_formats = [colors_format_o, colors_format_b, colors_format_g]
+
+    for i, worksheet in enumerate(worksheets): #FIXME: Colors are messed up (each ws only has one color)
+        for row, title in enumerate(titles):
+            worksheet.merge_range(f"A{row+1}:F{row+1}", title, colors_formats[row])
+
+
+    #set cell widths
+    worksheets = [worksheet_C, worksheet_D, worksheet_H]
+    column_widths = [(0, 10), (1, 35), (2, 8), (3, 8), (4, 32), (5, 35)]
+
+    for worksheet in worksheets:
+        for col, width in column_widths:
+            worksheet.set_column(col, col, width)
+
+
+    #Write Data to Sheets
+    #format data as table
+    worksheet_C.add_table('A5:F' + str(len(dfs['Cdf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Fastener Type'},
+                                                                        {'header': 'Notes'}]} )
+
+    worksheet_D.add_table('A5:E' + str(len(dfs['Ddf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+
+    worksheet_H.add_table('A5:E' + str(len(dfs['Hdf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+
+    writer.close()
+    
+#obtain file path
+path = get_file_name()
+masterdf = pd.read_csv(path)
+
+#clean master
+masterdf = clean_master_data(masterdf)
+
+#break into C D H E
+letters = ["C", "D", "E", "H"]
+dfs = {letter + "df": split_data(masterdf, letter) for letter in letters}
+
+#Merge E and H into one H
+dfs['Hdf'] = pd.concat([dfs['Hdf'],dfs['Edf']]) 
+
+#arrange titles
+dfs["Ddf"] = arrange_titles(dfs['Ddf'], False)
+dfs["Hdf"] = arrange_titles(dfs['Hdf'], False)
 
 #add fastener type and populate
-Cdf['Fastener Type'] = ''
-Cdf['Fastener Type'] = Cdf['Number'].str[:3].map(descdict)
-Cdf = Cdf[['Number','Name','Quantity','Color','Fastener Type','Notes']]
+dfs['Cdf']['Fastener Type'] = ''
+dfs['Cdf']['Fastener Type'] = dfs['Cdf']['Number'].str[:3].map(descdict)
+dfs['Cdf'] = arrange_titles(dfs['Cdf'], True)
 
-#write to file
-output_name = os.path.basename(file_path[:-4])
-writer = pd.ExcelWriter(output_name + '_output.xlsx', engine="xlsxwriter")
-workbook  = writer.book
-
-#create sheets
-dataframes = {
-    'C - Fasteners': Cdf,
-    'D - Fabricated': Ddf,
-    'H E - Weldment': Hdf
-}
-
-for sheet_name, dataframe in dataframes.items():
-    dataframe.to_excel(writer, index=False, startrow=4, sheet_name=sheet_name)
-
-worksheet_dict = {name: writer.sheets[name] for name in ['C - Fasteners', 'D - Fabricated', 'H E - Weldment']}
-worksheet_C, worksheet_D, worksheet_H = worksheet_dict.values()
-
-#format file
-#define merged colors
-colors_format_o = workbook.add_format(
-    {
-        "border": 1,
-        "align": "center",
-        "fg_color": "#ff6600",
-    }
-)
-colors_format_b = workbook.add_format(
-    {
-        "border": 1,
-        "align": "center",
-        "fg_color": "#6699ff",
-    }
-)
-colors_format_g = workbook.add_format(
-    {
-        "border": 1,
-        "align": "center",
-        "fg_color": "#00cc66",
-    }
-)
-
-#create colors at the top of sheet
-worksheets = [worksheet_C, worksheet_D, worksheet_H]
-titles = ["Common", "New/Rarely Used", "Change Proposal"]
-colors_formats = [colors_format_o, colors_format_b, colors_format_g]
-
-for i, worksheet in enumerate(worksheets):
-    for row, title in enumerate(titles):
-        worksheet.merge_range(f"A{row+1}:F{row+1}", title, colors_formats[i])
-
-
-#set cell widths
-worksheets = [worksheet_C, worksheet_D, worksheet_H]
-column_widths = [(0, 10), (1, 35), (2, 8), (3, 8), (4, 32), (5, 35)]
-
-for worksheet in worksheets:
-    for col, width in column_widths:
-        worksheet.set_column(col, col, width)
-
-
-#Write Data to Sheets
-#format data as table
-worksheet_C.add_table('A5:F' + str(len(Cdf.index) + 5),{'style': 'Table Style Medium 15',
-                                                        'columns': [{'header': 'Number'},
-                                                                    {'header': 'Name'},
-                                                                    {'header': 'Quantity'},
-                                                                    {'header': 'Color'},
-                                                                    {'header': 'Fastener Type'},
-                                                                    {'header': 'Notes'}]} )
-
-worksheet_D.add_table('A5:E' + str(len(Ddf.index) + 5),{'style': 'Table Style Medium 15',
-                                                        'columns': [{'header': 'Number'},
-                                                                    {'header': 'Name'},
-                                                                    {'header': 'Quantity'},
-                                                                    {'header': 'Color'},
-                                                                    {'header': 'Notes'}]} )
-
-worksheet_H.add_table('A5:E' + str(len(Hdf.index) + 5),{'style': 'Table Style Medium 15',
-                                                        'columns': [{'header': 'Number'},
-                                                                    {'header': 'Name'},
-                                                                    {'header': 'Quantity'},
-                                                                    {'header': 'Color'},
-                                                                    {'header': 'Notes'}]} )
-
-writer.close()
+write_to_excel()
