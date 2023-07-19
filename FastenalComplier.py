@@ -55,10 +55,7 @@ masterdf['Number'] = masterdf['Number'].str.replace('.ASM', '')
 masterdf['Number'] = masterdf['Number'].str.replace('.PRT', '')
 
 #remove unneeded columns
-masterdf = masterdf.drop("Level", axis=1)
-masterdf = masterdf.drop("Version", axis=1)
-masterdf = masterdf.drop("State", axis=1)
-masterdf = masterdf.drop('File Name', axis=1)
+masterdf = masterdf.drop(["Level","Version","State","File Name"], axis=1)
 
 #remove everything but C, D, H & E
 masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
@@ -88,13 +85,20 @@ Cdf = Cdf[['Number','Name','Quantity','Color','Fastener Type','Notes']]
 #write to file
 output_name = os.path.basename(file_path[:-4])
 writer = pd.ExcelWriter(output_name + '_output.xlsx', engine="xlsxwriter")
-Cdf.to_excel(writer, index= False,startrow=4,sheet_name= 'C - Fasteners')
-Ddf.to_excel(writer, index= False,startrow=4,sheet_name= 'D - Fabricated')
-Hdf.to_excel(writer, index= False,startrow=4,sheet_name= 'H E - Weldment')
 workbook  = writer.book
-worksheet_C = writer.sheets['C - Fasteners']
-worksheet_D = writer.sheets['D - Fabricated']
-worksheet_H = writer.sheets['H E - Weldment']
+
+#create sheets
+dataframes = {
+    'C - Fasteners': Cdf,
+    'D - Fabricated': Ddf,
+    'H E - Weldment': Hdf
+}
+
+for sheet_name, dataframe in dataframes.items():
+    dataframe.to_excel(writer, index=False, startrow=4, sheet_name=sheet_name)
+
+worksheet_dict = {name: writer.sheets[name] for name in ['C - Fasteners', 'D - Fabricated', 'H E - Weldment']}
+worksheet_C, worksheet_D, worksheet_H = worksheet_dict.values()
 
 #format file
 #define merged colors
@@ -121,40 +125,25 @@ colors_format_g = workbook.add_format(
 )
 
 #create colors at the top of sheet
-worksheet_C.merge_range("A1:F1", "Common", colors_format_o)
-worksheet_C.merge_range("A2:F2", "New/Rarely Used", colors_format_b)
-worksheet_C.merge_range("A3:F3", "Change Proposal", colors_format_g)
+worksheets = [worksheet_C, worksheet_D, worksheet_H]
+titles = ["Common", "New/Rarely Used", "Change Proposal"]
+colors_formats = [colors_format_o, colors_format_b, colors_format_g]
 
-worksheet_D.merge_range("A1:F1", "Common", colors_format_o)
-worksheet_D.merge_range("A2:F2", "New/Rarely Used", colors_format_b)
-worksheet_D.merge_range("A3:F3", "Change Proposal", colors_format_g)
+for i, worksheet in enumerate(worksheets):
+    for row, title in enumerate(titles):
+        worksheet.merge_range(f"A{row+1}:F{row+1}", title, colors_formats[i])
 
-worksheet_H.merge_range("A1:F1", "Common", colors_format_o)
-worksheet_H.merge_range("A2:F2", "New/Rarely Used", colors_format_b)
-worksheet_H.merge_range("A3:F3", "Change Proposal", colors_format_g)
 
 #set cell widths
-worksheet_C.set_column(0, 0, 10)
-worksheet_C.set_column(1, 1, 35)
-worksheet_C.set_column(2, 3, 8)
-worksheet_C.set_column(4, 4, 32)
-worksheet_C.set_column(5, 5, 35)
+worksheets = [worksheet_C, worksheet_D, worksheet_H]
+column_widths = [(0, 10), (1, 35), (2, 8), (3, 8), (4, 32), (5, 35)]
 
-worksheet_D.set_column(0, 0, 10)
-worksheet_D.set_column(1, 1, 35)
-worksheet_D.set_column(2, 3, 8)
-worksheet_D.set_column(4, 4, 32)
-worksheet_D.set_column(5, 5, 35)
+for worksheet in worksheets:
+    for col, width in column_widths:
+        worksheet.set_column(col, col, width)
 
-worksheet_H.set_column(0, 0, 10)
-worksheet_H.set_column(1, 1, 35)
-worksheet_H.set_column(2, 3, 8)
-worksheet_H.set_column(4, 4, 32)
-worksheet_H.set_column(5, 5, 35)
 
 #Write Data to Sheets
-
-
 #format data as table
 worksheet_C.add_table('A5:F' + str(len(Cdf.index) + 5),{'style': 'Table Style Medium 15',
                                                         'columns': [{'header': 'Number'},
