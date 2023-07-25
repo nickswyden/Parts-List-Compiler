@@ -41,7 +41,37 @@ desc_texts = [
 
 descdict = {key: value for key, value in zip(desc_list, desc_texts)}
 
-def get_file_name():
+def main():    
+    #obtain file path
+    global path
+    global dfs
+    path = get_file_name()
+    masterdf = pd.read_csv(path)
+
+    #clean master
+    masterdf = clean_master_data(masterdf)
+
+    #break into C D H E
+    letters = ["C", "D", "E", "H"]
+    dfs = {letter + "df": split_data(masterdf, letter) for letter in letters}
+
+    #Merge E and H into one H
+    dfs['Hdf'] = pd.concat([dfs['Hdf'],dfs['Edf']]) 
+
+    #arrange titles
+    dfs["Ddf"] = arrange_titles(dfs['Ddf'], False)
+    dfs["Hdf"] = arrange_titles(dfs['Hdf'], False)
+
+    #add fastener type and populate
+    dfs['Cdf']['Fastener Type'] = ''
+    dfs['Cdf']['Fastener Type'] = dfs['Cdf']['Number'].str[:3].map(descdict)
+    dfs['Cdf'] = arrange_titles(dfs['Cdf'], True)
+
+    write_to_excel()
+    
+    return path, dfs
+    
+def get_file_name(): #returns file name from windows dialogue box
     #draw file selection window
     root = tk.Tk()
     root.withdraw()
@@ -50,7 +80,7 @@ def get_file_name():
     file_path = filedialog.askopenfilename()
     return file_path
 
-def clean_master_data(masterdf):
+def clean_master_data(masterdf): # drops unneeded data from masterdf, returns new cleaned masterdf
     #remove File extensions
     masterdf['Number'] = masterdf['Number'].str.replace('.ASM', '')
     masterdf['Number'] = masterdf['Number'].str.replace('.PRT', '')
@@ -70,20 +100,24 @@ def clean_master_data(masterdf):
     
     return masterdf
 
-def split_data(df, x):
-    newdf = df[df['Number'].str[-1] == x]
+def split_data(df, x): #creates new df based Number column and a char, x, and returns
+    newdf = df[df['Number'].str[-1] == x] 
     return newdf
 
-def arrange_titles(df,long_title):
+def arrange_titles(df,long_title): #rearranges the column headers since they are out of order
     if long_title == True:
         df = df[['Number','Name','Quantity','Color','Fastener Type','Notes']]
     else:
         df = df[['Number','Name','Quantity','Color','Notes']]
     return df
 
-def write_to_excel():
+def write_to_excel(): # does the bulk of formatting and writes the dataframes to an .xlsx
     output_name = os.path.basename(path[:-4])
-    writer = pd.ExcelWriter(output_name + '_output.xlsx', engine="xlsxwriter")
+    file_name = output_name + '_output0.xlsx'
+    #i = int(file_name[:-6]) + 1
+    #if (os.path.isfile(file_name) == True): FIXME: Add functionality to create new sheet with existing sheet in directory (version 1,2,3,...)
+    #    file_name = output_name + '_output'+ i +'.xlsx'
+    writer = pd.ExcelWriter(file_name, engine="xlsxwriter")
     workbook  = writer.book
 
     #create sheets
@@ -166,28 +200,5 @@ def write_to_excel():
                                                                         {'header': 'Notes'}]} )
 
     writer.close()
-    
-#obtain file path
-path = get_file_name()
-masterdf = pd.read_csv(path)
 
-#clean master
-masterdf = clean_master_data(masterdf)
-
-#break into C D H E
-letters = ["C", "D", "E", "H"]
-dfs = {letter + "df": split_data(masterdf, letter) for letter in letters}
-
-#Merge E and H into one H
-dfs['Hdf'] = pd.concat([dfs['Hdf'],dfs['Edf']]) 
-
-#arrange titles
-dfs["Ddf"] = arrange_titles(dfs['Ddf'], False)
-dfs["Hdf"] = arrange_titles(dfs['Hdf'], False)
-
-#add fastener type and populate
-dfs['Cdf']['Fastener Type'] = ''
-dfs['Cdf']['Fastener Type'] = dfs['Cdf']['Number'].str[:3].map(descdict)
-dfs['Cdf'] = arrange_titles(dfs['Cdf'], True)
-
-write_to_excel()
+main()
