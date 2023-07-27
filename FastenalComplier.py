@@ -52,15 +52,28 @@ def main():
     masterdf = clean_master_data(masterdf)
 
     #break into C D H E
-    letters = ["C", "D", "E", "H"]
+    letters = ["A","B","C","D","E","F","H","K","L","R","S","T","V"]
     dfs = {letter + "df": split_data(masterdf, letter) for letter in letters}
 
-    #Merge E and H into one H
-    dfs['Hdf'] = pd.concat([dfs['Hdf'],dfs['Edf']]) 
+    #Merge E, F and H into one H
+    dfs['Hdf'] = pd.concat([dfs['Hdf'],dfs['Edf'],dfs['Fdf']]) 
+    
+    #merge B,L,K
+    dfs['Bdf'] = pd.concat([dfs['Bdf'],dfs['Ldf'],dfs['Kdf']]) 
+    
+    #merge S,V
+    dfs['Sdf'] = pd.concat([dfs['Sdf'],dfs['Vdf']])
+    
+    #merge R,T
+    dfs['Rdf'] = pd.concat([dfs['Rdf'],dfs['Tdf']])
 
     #arrange titles
     dfs["Ddf"] = arrange_titles(dfs['Ddf'], False)
     dfs["Hdf"] = arrange_titles(dfs['Hdf'], False)
+    dfs["Adf"] = arrange_titles(dfs['Adf'], False)
+    dfs["Bdf"] = arrange_titles(dfs['Bdf'], False)
+    dfs["Sdf"] = arrange_titles(dfs['Sdf'], False)
+    dfs["Rdf"] = arrange_titles(dfs['Rdf'], False)
 
     #add fastener type and populate
     dfs['Cdf']['Fastener Type'] = ''
@@ -89,7 +102,8 @@ def clean_master_data(masterdf): # drops unneeded data from masterdf, returns ne
     masterdf = masterdf.drop(["Level","Version","State","File Name"], axis=1)
 
     #remove everything but C, D, H & E
-    masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
+    #masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
+    masterdf = masterdf[masterdf['Number'].str.contains("A|B|C|D|E|F|H|K|L|R|S|T|V") == True]
 
     #add empty Columns
     masterdf['Color'] = ''
@@ -122,16 +136,20 @@ def write_to_excel(): # does the bulk of formatting and writes the dataframes to
 
     #create sheets
     dataframes = {
+        'A - Assemblies': dfs['Adf'],
+        'B L K - Sub-Assemblies': dfs['Bdf'],
         'C - Fasteners': dfs['Cdf'],
         'D - Fabricated': dfs['Ddf'],
-        'H E - Weldment': dfs['Hdf']
+        'H E F - Weldment': dfs['Hdf'],
+        'R T - Raw Materials': dfs['Rdf'],
+        'S V - Sub-Assemblies': dfs['Sdf']
     }
 
     for sheet_name, dataframe in dataframes.items():
         dataframe.to_excel(writer, index=False, startrow=4, sheet_name=sheet_name)
 
-    worksheet_dict = {name: writer.sheets[name] for name in ['C - Fasteners', 'D - Fabricated', 'H E - Weldment']}
-    worksheet_C, worksheet_D, worksheet_H = worksheet_dict.values()
+    worksheet_dict = {name: writer.sheets[name] for name in ['A - Assemblies', 'B L K - Sub-Assemblies', 'C - Fasteners', 'D - Fabricated', 'H E F - Weldment','R T - Raw Materials','S V - Sub-Assemblies']}
+    worksheet_A, worksheet_B, worksheet_C, worksheet_D, worksheet_H, worksheet_R, worksheet_S = worksheet_dict.values()
 
     #define merged colors
     colors_format_o = workbook.add_format(
@@ -157,7 +175,7 @@ def write_to_excel(): # does the bulk of formatting and writes the dataframes to
     )
 
     #create colors at the top of sheet
-    worksheets = [worksheet_C, worksheet_D, worksheet_H]
+    worksheets = [ worksheet_A, worksheet_B, worksheet_C, worksheet_D, worksheet_H, worksheet_R, worksheet_S]
     titles = ["Common", "New/Rarely Used", "Change Proposal"]
     colors_formats = [colors_format_o, colors_format_b, colors_format_g]
 
@@ -167,9 +185,7 @@ def write_to_excel(): # does the bulk of formatting and writes the dataframes to
 
 
     #set cell widths
-    worksheets = [worksheet_C, worksheet_D, worksheet_H]
     column_widths = [(0, 10), (1, 35), (2, 8), (3, 8), (4, 32), (5, 35)]
-
     for worksheet in worksheets:
         for col, width in column_widths:
             worksheet.set_column(col, col, width)
@@ -193,6 +209,34 @@ def write_to_excel(): # does the bulk of formatting and writes the dataframes to
                                                                         {'header': 'Notes'}]} )
 
     worksheet_H.add_table('A5:E' + str(len(dfs['Hdf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+    
+    worksheet_A.add_table('A5:E' + str(len(dfs['Adf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+    
+    worksheet_B.add_table('A5:E' + str(len(dfs['Bdf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+    
+    worksheet_S.add_table('A5:E' + str(len(dfs['Sdf'].index) + 5),{'style': 'Table Style Medium 15',
+                                                            'columns': [{'header': 'Number'},
+                                                                        {'header': 'Name'},
+                                                                        {'header': 'Quantity'},
+                                                                        {'header': 'Color'},
+                                                                        {'header': 'Notes'}]} )
+    
+    worksheet_R.add_table('A5:E' + str(len(dfs['Rdf'].index) + 5),{'style': 'Table Style Medium 15',
                                                             'columns': [{'header': 'Number'},
                                                                         {'header': 'Name'},
                                                                         {'header': 'Quantity'},
