@@ -100,10 +100,10 @@ def clean_master_data(masterdf): # drops unneeded data from masterdf, returns ne
 
     #remove unneeded columns
     masterdf = masterdf.drop(["Level","Version","State","File Name"], axis=1)
-
-    #remove everything but C, D, H & E
-    #masterdf = masterdf[masterdf['Number'].str.contains("A|B|F|S|K|_|I|J") == False]
-    masterdf = masterdf[masterdf['Number'].str.contains("A|B|C|D|E|F|H|K|L|R|S|T|V") == True]
+    
+    #df filtering
+    masterdf = masterdf[masterdf['Number'].str.contains("A|B|C|D|E|F|H|K|L|R|S|T|V") == True] # filters for proper suffixed parts
+    masterdf = masterdf[masterdf['Number'].str.contains(r'^\d{3}-\d{3}[A-Z]$') == True] # follows format ###-###A, etc.
 
     #add empty Columns
     masterdf['Color'] = ''
